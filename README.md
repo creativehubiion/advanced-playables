@@ -13,6 +13,7 @@ GitHub Pages serves the latest `main` at:
 
 | Creative | URL | Purpose |
 | --- | --- | --- |
+| [`tilt-racer`](./tilt-racer/) | [/tilt-racer/](https://creativehubiion.github.io/advanced-playables/tilt-racer/) | Playable demo — gyro tilt-to-steer endless racer, 25 s loop, with auto-fallback to drag-to-steer when gyro is denied or silently blocked. Validates the full pipeline: iOS permission gate, sensor binding, MRAID `open()` click-through, GAM macros. |
 | [`sensor-probe`](./sensor-probe/) | [/sensor-probe/](https://creativehubiion.github.io/advanced-playables/sensor-probe/) | Live diagnostics for MRAID / Permissions Policy / DeviceMotion / DeviceOrientation / mic / WebGL / fps inside whatever WebView is rendering it. |
 
 ## Why this matters
