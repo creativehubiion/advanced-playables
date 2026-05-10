@@ -31,6 +31,18 @@
   .stat-box{display:flex;gap:32px;margin:8px 0 28px}
   .stat-box .stat .lbl{font-size:10px;color:#7d8aa8;letter-spacing:.12em;text-transform:uppercase}
   .stat-box .stat .num{font-size:28px;font-weight:800;color:#ffd34d;font-variant-numeric:tabular-nums}
+
+  /* Live sensor diagnostic on the start overlay */
+  #diag{margin-top:18px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:#5d6885;letter-spacing:.04em;text-align:left;background:rgba(0,0,0,.25);padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.06);min-width:240px}
+  #diag .k{color:#7d8aa8;display:inline-block;width:80px}
+  #diag .v{color:#e6edf3;font-variant-numeric:tabular-nums}
+  #diag .v.ok{color:#3fb950}
+  #diag .v.bad{color:#f85149}
+  #diag .v.warn{color:#d29922}
+
+  /* Persistent in-game Learn more CTA */
+  #cta-pill{position:fixed;bottom:18px;right:14px;background:rgba(0,0,0,.55);color:#5dd9ff;border:1px solid rgba(93,217,255,.4);padding:7px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:none;z-index:7;backdrop-filter:blur(6px)}
+  #cta-pill:active{transform:scale(.97);background:rgba(93,217,255,.15)}
 </style>
 </head>
 <body>
@@ -42,13 +54,23 @@
   <div><span class="label">Time</span><span id="time-val" class="val">25</span></div>
 </div>
 <div id="input-pill" style="display:none">— input</div>
+<button id="cta-pill">Learn more</button>
 
 <div id="ov-start" class="overlay">
   <div class="arrows">↶ ↷</div>
   <h1>TILT RACER</h1>
   <p>Tilt your phone left and right to steer.<br>Dodge the cars. Grab the coins.</p>
   <button id="btn-start" class="btn">Tap to start</button>
-  <div class="small">iion · advanced playables</div>
+  <div id="diag">
+    <div><span class="k">gyro api</span><span class="v" id="d-orient-api">…</span></div>
+    <div><span class="k">events</span><span class="v" id="d-orient-count">0</span></div>
+    <div><span class="k">α / β / γ</span><span class="v" id="d-orient-vals">— / — / —</span></div>
+    <div><span class="k">accel api</span><span class="v" id="d-motion-api">…</span></div>
+    <div><span class="k">accel evt</span><span class="v" id="d-motion-count">0</span></div>
+    <div><span class="k">policy</span><span class="v" id="d-policy">…</span></div>
+    <div><span class="k">https</span><span class="v" id="d-https">…</span></div>
+  </div>
+  <div class="small" style="margin-top:14px">iion · advanced playables</div>
 </div>
 
 <div id="ov-end" class="overlay" style="display:none">
@@ -57,7 +79,7 @@
     <div class="stat"><div class="lbl">Score</div><div id="end-score" class="num">0</div></div>
     <div class="stat"><div class="lbl">Coins</div><div id="end-coins" class="num">0</div></div>
   </div>
-  <button id="btn-cta" class="btn">Install Now</button>
+  <button id="btn-cta" class="btn">Learn more</button>
   <button id="btn-replay" style="background:none;border:none;color:#7d8aa8;font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-top:18px;cursor:pointer">Play again</button>
 </div>
 
@@ -93,6 +115,32 @@
   try { isTop = (window === window.top); } catch { isTop = false; }
   track('SensorProbeLoaded');
   track(isTop ? 'SensorProbeTopLevel' : 'SensorProbeIframed');
+
+  // -------- live on-screen diagnostic (visible on the start overlay) --------
+  // Lets a tester watch sensor state in real time before they tap Start.
+  // If gyro is firing here, the game will respond to tilt. If not, the
+  // d-orient-count stays 0 and we know there's a Permissions Policy /
+  // browser / device problem rather than a game-code problem.
+  const $D = (id) => document.getElementById(id);
+  function setD(id, value, klass) {
+    const el = $D(id); if (!el) return;
+    el.textContent = value;
+    el.classList.remove('ok','bad','warn');
+    if (klass) el.classList.add(klass);
+  }
+  setD('d-https', location.protocol === 'https:' ? 'yes' : 'no — sensors blocked',
+       location.protocol === 'https:' ? 'ok' : 'bad');
+  // Permissions Policy summary
+  let _pol;
+  try {
+    const fp = document.featurePolicy || document.permissionsPolicy;
+    const g = fp?.allowsFeature?.('gyroscope');
+    const a = fp?.allowsFeature?.('accelerometer');
+    if (g === false || a === false) _pol = 'blocked';
+    else if (g === true && a === true) _pol = 'allowed';
+    else _pol = 'unknown';
+  } catch { _pol = 'unknown'; }
+  setD('d-policy', _pol, _pol === 'allowed' ? 'ok' : _pol === 'blocked' ? 'bad' : 'warn');
 
   // Permissions Policy snapshot
   ['gyroscope','accelerometer','magnetometer','microphone','camera','geolocation','autoplay','fullscreen']
@@ -166,6 +214,9 @@
   const orientGesture = orientApi && typeof DeviceOrientationEvent.requestPermission === 'function';
   track(orientApi ? 'SensorOrientApiPresent' : 'SensorOrientApiAbsent');
   if (orientApi) track(orientGesture ? 'SensorOrientGestureRequired' : 'SensorOrientAutoBind');
+  setD('d-orient-api',
+       orientApi ? (orientGesture ? 'yes (iOS gesture)' : 'yes (auto)') : 'absent',
+       orientApi ? 'ok' : 'bad');
 
   function onGyro(e) {
     state.gyroEvents++;
@@ -181,6 +232,12 @@
     if (state.gyroEvents === 1) {
       state.inputMode = 'gyro';
       updatePill();
+    }
+    // Live diagnostic update — only when start overlay is still visible
+    if (state.phase === 'idle' && (state.gyroEvents % 4) === 0) {
+      setD('d-orient-count', state.gyroEvents + ' (firing)', 'ok');
+      const f = (n) => (typeof n === 'number') ? n.toFixed(0) : '—';
+      setD('d-orient-vals', `${f(e.alpha)} / ${f(e.beta)} / ${f(e.gamma)}`);
     }
     if (state.calib === null && typeof e.gamma === 'number') state.calib = e.gamma;
     if (typeof e.gamma === 'number' && state.calib !== null) {
@@ -208,6 +265,7 @@
     setTimeout(() => {
       if (state.gyroEvents === 0 && !probeClosed) {
         track('SensorOrientSilentBlock');
+        setD('d-orient-count', '0 (silently blocked)', 'bad');
         if (state.inputMode === 'pending') useTouchMode('blocked');
       }
     }, 2000);
@@ -221,6 +279,9 @@
   const motionGesture = motionApi && typeof DeviceMotionEvent.requestPermission === 'function';
   track(motionApi ? 'SensorMotionApiPresent' : 'SensorMotionApiAbsent');
   if (motionApi) track(motionGesture ? 'SensorMotionGestureRequired' : 'SensorMotionAutoBind');
+  setD('d-motion-api',
+       motionApi ? (motionGesture ? 'yes (iOS gesture)' : 'yes (auto)') : 'absent',
+       motionApi ? 'ok' : 'bad');
 
   function onMotion(e) {
     state.motionEvents++;
@@ -233,6 +294,10 @@
     if (state.motionEvents === 10) track('SensorMotionConfirmed10');
     if (state.motionEvents === 50) track('SensorMotionConfirmed50');
 
+    // Live diagnostic update for motion (start overlay only)
+    if (state.phase === 'idle' && (state.motionEvents % 4) === 0) {
+      setD('d-motion-count', state.motionEvents + ' (firing)', 'ok');
+    }
     if (e.acceleration) {
       const m = Math.hypot(e.acceleration.x || 0, e.acceleration.y || 0, e.acceleration.z || 0);
       if (!state.userTilted && m > 1.5) { state.userTilted = true; track('SensorUserTilted'); }
@@ -253,7 +318,10 @@
   function bindMotion() {
     addEventListener('devicemotion', onMotion, true);
     setTimeout(() => {
-      if (state.motionEvents === 0 && !probeClosed) track('SensorMotionSilentBlock');
+      if (state.motionEvents === 0 && !probeClosed) {
+        track('SensorMotionSilentBlock');
+        setD('d-motion-count', '0 (silently blocked)', 'bad');
+      }
     }, 2000);
   }
 
@@ -506,6 +574,7 @@
     document.getElementById('hud').style.display = '';
     document.getElementById('ov-start').style.display = 'none';
     document.getElementById('ov-end').style.display = 'none';
+    document.getElementById('cta-pill').style.display = '';
     track('SensorGameStarted');
   }
 
@@ -516,6 +585,7 @@
     document.getElementById('end-coins').textContent = state.coins;
     document.getElementById('ov-end').style.display = '';
     document.getElementById('hud').style.display = 'none';
+    document.getElementById('cta-pill').style.display = 'none';
     track(success ? 'SensorGameSurvived' : 'SensorGameCrashedEnd');
     track('SensorGameScore_' + (state.score < 100 ? 'lt100' : state.score < 500 ? '100to500' : state.score < 1000 ? '500to1000' : 'gt1000'));
     // ---- FOOLPROOF: full game completed in gyro-only mode ----
@@ -546,6 +616,7 @@
     startGame();
   });
   document.getElementById('btn-cta').addEventListener('click', clickThrough);
+  document.getElementById('cta-pill').addEventListener('click', (e) => { e.stopPropagation(); clickThrough(); });
   document.getElementById('btn-replay').addEventListener('click', () => {
     state.calib = null;
     startGame();
