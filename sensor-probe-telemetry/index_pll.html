@@ -4,182 +4,277 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="ad.size" content="width=320,height=480">
-<title>iion sensor probe</title>
+<title>iion Tilt Racer · PLL</title>
 <script src="mraid.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{width:100%;height:100%;overflow:hidden;background:#0b0d10;color:#e6edf3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;user-select:none;-webkit-user-select:none}
-  body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
-  .brand{display:flex;align-items:center;gap:8px;margin-bottom:32px}
-  .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#5dd9ff,#a47bff);animation:pulse 1.4s ease-in-out infinite}
-  @keyframes pulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.4);opacity:1}}
-  .brand .name{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#9aa6c2;font-weight:600}
-  h1{font-size:24px;font-weight:800;letter-spacing:.02em;margin-bottom:12px;background:linear-gradient(90deg,#5dd9ff,#a47bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  p{font-size:13px;color:#7d8aa8;line-height:1.5;max-width:300px;margin-bottom:24px}
-  .cta{background:linear-gradient(90deg,#5dd9ff,#a47bff);color:#0b0d10;border:none;padding:13px 32px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;box-shadow:0 6px 20px rgba(93,217,255,.3);min-width:180px;display:none}
-  .cta.show{display:inline-block;animation:fade .4s ease}
-  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  .cta:active{transform:scale(.97)}
-  .arrows{font-size:34px;letter-spacing:18px;color:#5dd9ff;margin-bottom:12px;text-shadow:0 0 12px rgba(93,217,255,.5);min-height:42px}
-  .arrows.tilt{animation:wobble 1.4s ease-in-out infinite}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0e1a;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#0a0e1a;touch-action:none}
+  #hud{position:fixed;top:0;left:0;right:0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;font-weight:700;letter-spacing:.04em;font-size:14px;z-index:5;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  #hud .label{font-size:9px;font-weight:600;color:#7d8aa8;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:1px}
+  #hud .val{font-size:18px;font-variant-numeric:tabular-nums}
+  #score-val{color:#ffd34d}
+  #time-val{color:#5dd9ff}
+  #input-pill{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);padding:4px 10px;border-radius:999px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#9aa6c2;pointer-events:none;z-index:6;font-weight:600}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;background:radial-gradient(circle at 50% 30%,#1b2240 0%,#0a0e1a 80%);z-index:10;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .overlay h1{font-size:34px;font-weight:800;letter-spacing:.04em;margin-bottom:8px;background:linear-gradient(90deg,#5dd9ff,#a47bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-fill-color:transparent}
+  .overlay h2{font-size:22px;font-weight:700;color:#ffd34d;margin:6px 0 22px;letter-spacing:.02em}
+  .overlay p{font-size:14px;color:#9aa6c2;line-height:1.5;max-width:320px;margin-bottom:28px}
+  .overlay .arrows{font-size:30px;letter-spacing:18px;color:#5dd9ff;margin-bottom:14px;animation:wobble 1.4s ease-in-out infinite;text-shadow:0 0 12px rgba(93,217,255,.55)}
   @keyframes wobble{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
-  .stat{position:fixed;bottom:8px;left:8px;right:8px;font-size:9px;color:#3d4658;text-align:left;letter-spacing:.04em;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.4;pointer-events:none}
-  .stat span{display:inline-block;margin-right:8px}
+  .btn{background:linear-gradient(90deg,#5dd9ff,#a47bff);color:#0a0e1a;border:none;padding:14px 38px;border-radius:999px;font-size:15px;font-weight:800;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;box-shadow:0 8px 28px rgba(93,217,255,.35);min-width:200px;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  .btn:active{transform:scale(.97)}
+  .small{font-size:11px;color:#5d6885;margin-top:18px;letter-spacing:.05em}
+  .stat-box{display:flex;gap:32px;margin:8px 0 28px}
+  .stat-box .stat .lbl{font-size:10px;color:#7d8aa8;letter-spacing:.12em;text-transform:uppercase}
+  .stat-box .stat .num{font-size:28px;font-weight:800;color:#ffd34d;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 
-<div class="brand"><span class="dot"></span><span class="name">iion · advanced playable</span></div>
-<div class="arrows tilt" id="arrows">↶ ↷</div>
-<h1>Tilt to play</h1>
-<p>Move your phone to interact with the next iion playable. Tap below to learn more.</p>
-<button class="cta" id="cta">Learn more</button>
+<div id="stage"><canvas id="game" width="360" height="640"></canvas></div>
 
-<div class="stat" id="stat">Initializing…</div>
+<div id="hud" style="display:none">
+  <div><span class="label">Score</span><span id="score-val" class="val">0</span></div>
+  <div><span class="label">Time</span><span id="time-val" class="val">25</span></div>
+</div>
+<div id="input-pill" style="display:none">— input</div>
+
+<div id="ov-start" class="overlay">
+  <div class="arrows">↶ ↷</div>
+  <h1>TILT RACER</h1>
+  <p>Tilt your phone left and right to steer.<br>Dodge the cars. Grab the coins.</p>
+  <button id="btn-start" class="btn">Tap to start</button>
+  <div class="small">iion · advanced playables</div>
+</div>
+
+<div id="ov-end" class="overlay" style="display:none">
+  <h1 id="end-title">NICE RUN</h1>
+  <div class="stat-box">
+    <div class="stat"><div class="lbl">Score</div><div id="end-score" class="num">0</div></div>
+    <div class="stat"><div class="lbl">Coins</div><div id="end-coins" class="num">0</div></div>
+  </div>
+  <button id="btn-cta" class="btn">Install Now</button>
+  <button id="btn-replay" style="background:none;border:none;color:#7d8aa8;font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-top:18px;cursor:pointer">Play again</button>
+</div>
 
 <script>
 (() => {
   'use strict';
 
-  // ---------- bootstrap ----------
-  const STAT = document.getElementById('stat');
-  const CTA  = document.getElementById('cta');
+  // ===================================================================
+  //  iion DMP TELEMETRY LAYER
+  //  All events are discrete + countable for DMP GROUP BY event_name.
+  //  Telemetry fires from inside handlers (never from attach) so that
+  //  "API present" is never confused with "API actually firing events".
+  // ===================================================================
   const startedAt = performance.now();
   let probeClosed = false;
-
-  // ---------- DMP tracking ----------
-  // window.trackingType is set in the trailing script block at end of body.
-  // It ends with `event_name=` so we just append the event name to fire.
   const fired = new Set();
   function track(name, oneShot = true) {
     if (!name) return;
-    if (oneShot) {
-      if (fired.has(name)) return;
-      fired.add(name);
-    }
+    if (oneShot) { if (fired.has(name)) return; fired.add(name); }
     const url = (window.trackingType || '') + name;
+    if (!window.trackingType) return;
     try {
-      // GET request, fire-and-forget. Use Image() as a fallback safeguard
-      // in case fetch is throttled / blocked / CSP-restricted in some SDKs.
-      if (typeof fetch === 'function' && window.trackingType) {
-        fetch(url, { method: 'GET', mode: 'no-cors', keepalive: true }).catch(() => {
-          new Image().src = url;
-        });
-      } else if (window.trackingType) {
+      if (typeof fetch === 'function') {
+        fetch(url, { method: 'GET', mode: 'no-cors', keepalive: true }).catch(() => { try { new Image().src = url; } catch {} });
+      } else {
         new Image().src = url;
       }
-    } catch (e) {
-      try { new Image().src = url; } catch {}
-    }
-    // Visible diagnostic line (does not affect telemetry)
-    if (STAT) {
-      const dt = ((performance.now() - startedAt) / 1000).toFixed(1);
-      STAT.textContent = `[${dt}s] ${Array.from(fired).slice(-3).join(' · ')}`;
-    }
+    } catch { try { new Image().src = url; } catch {} }
   }
 
-  // ---------- environment + iframe context ----------
+  // -------- environment + iframe context (fires on load) --------
   let isTop = false;
   try { isTop = (window === window.top); } catch { isTop = false; }
   track('SensorProbeLoaded');
   track(isTop ? 'SensorProbeTopLevel' : 'SensorProbeIframed');
 
-  // ---------- Permissions Policy snapshot ----------
-  const ppFeatures = ['gyroscope','accelerometer','magnetometer','microphone','camera','geolocation','autoplay','fullscreen'];
-  ppFeatures.forEach((f) => {
-    let v = null;
-    try {
-      const fp = document.featurePolicy || document.permissionsPolicy;
-      if (fp && typeof fp.allowsFeature === 'function') v = fp.allowsFeature(f);
-    } catch {}
-    if (v === true)       track(`SensorPolicy_${f}_allowed`);
-    else if (v === false) track(`SensorPolicy_${f}_blocked`);
-    else                  track(`SensorPolicy_${f}_unknown`);
-  });
+  // Permissions Policy snapshot
+  ['gyroscope','accelerometer','magnetometer','microphone','camera','geolocation','autoplay','fullscreen']
+    .forEach((f) => {
+      let v = null;
+      try {
+        const fp = document.featurePolicy || document.permissionsPolicy;
+        if (fp && typeof fp.allowsFeature === 'function') v = fp.allowsFeature(f);
+      } catch {}
+      track(`SensorPolicy_${f}_${v === true ? 'allowed' : v === false ? 'blocked' : 'unknown'}`);
+    });
 
-  // ---------- MRAID ----------
+  // MRAID detection
   if (window.mraid) {
     track('SensorMraidPresent');
-    try {
-      const v = window.mraid.getVersion?.();
-      if (v) track('SensorMraidVersion_' + String(v).replace(/\W+/g, ''));
-    } catch {}
+    try { const v = window.mraid.getVersion?.(); if (v) track('SensorMraidVersion_' + String(v).replace(/\W+/g, '')); } catch {}
   } else {
     track('SensorMraidAbsent');
   }
 
-  // ---------- DeviceOrientation ----------
+  // ===================================================================
+  //  TILT RACER GAME
+  // ===================================================================
+
+  // -------------------- canvas + sizing --------------------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = 360, H = 640;
+  const ROAD_LEFT = 40, ROAD_RIGHT = 320, ROAD_W = ROAD_RIGHT - ROAD_LEFT;
+  function fitCanvas() {
+    const ar = W / H, winAr = innerWidth / innerHeight;
+    let w, h;
+    if (winAr > ar) { h = innerHeight; w = h * ar; } else { w = innerWidth; h = w / ar; }
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width  = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener('resize', fitCanvas);
+  fitCanvas();
+
+  // -------------------- state --------------------
+  const state = {
+    phase: 'idle', inputMode: 'pending', timeLeft: 25, score: 0, coins: 0,
+    distance: 0, speed: 360,
+    player: { x: W / 2, y: H - 110, w: 38, h: 64, tilt: 0 },
+    playerVx: 0, playerTargetX: W / 2,
+    obstacles: [], coinsArr: [], roadOffset: 0, spawnTimer: 0, coinTimer: 0,
+    explosion: null, calib: null,
+    gyroEvents: 0, motionEvents: 0,
+    gyroFirstT: null, motionFirstT: null,
+    userTilted: false, carMoved: false,
+    // ---- foolproof engagement-proof state ----
+    tiltLeftMaxDeg: 0,        // most-negative gamma deviation seen (deg)
+    tiltRightMaxDeg: 0,       // most-positive gamma deviation seen (deg)
+    tiltLeftFired: false,
+    tiltRightFired: false,
+    tiltBothFired: false,
+    accelHighSamples: 0,      // consecutive samples with |a| > 2.0
+    realAccelFired: false,
+    tiltSteeredFired: false,  // car X moved by gyro velocity past threshold
+    gyroNeverBroken: true,    // true if game has only ever been in gyro mode
+    score500GyroFired: false,
+    score1000GyroFired: false
+  };
+
+  // -------------------- input: gyro (DeviceOrientation) --------------------
   const orientApi = typeof DeviceOrientationEvent !== 'undefined';
   const orientGesture = orientApi && typeof DeviceOrientationEvent.requestPermission === 'function';
   track(orientApi ? 'SensorOrientApiPresent' : 'SensorOrientApiAbsent');
   if (orientApi) track(orientGesture ? 'SensorOrientGestureRequired' : 'SensorOrientAutoBind');
 
-  let orientCount = 0;
-  let orientFirstT = null;
-  function onOrient(e) {
-    orientCount++;
-    if (orientFirstT === null) {
-      orientFirstT = performance.now();
-      const dt = orientFirstT - startedAt;
+  function onGyro(e) {
+    state.gyroEvents++;
+    if (state.gyroFirstT === null) {
+      state.gyroFirstT = performance.now();
+      const dt = state.gyroFirstT - startedAt;
       const bucket = dt < 100 ? 'lt100ms' : dt < 500 ? '100to500ms' : dt < 2000 ? '500to2000ms' : 'gt2000ms';
       track('SensorOrientFirstEvent_' + bucket);
     }
-    if (orientCount === 10) track('SensorOrientConfirmed10');
-    if (orientCount === 50) track('SensorOrientConfirmed50');
+    if (state.gyroEvents === 10) track('SensorOrientConfirmed10');
+    if (state.gyroEvents === 50) track('SensorOrientConfirmed50');
+
+    if (state.gyroEvents === 1) {
+      state.inputMode = 'gyro';
+      updatePill();
+    }
+    if (state.calib === null && typeof e.gamma === 'number') state.calib = e.gamma;
+    if (typeof e.gamma === 'number' && state.calib !== null) {
+      const raw = e.gamma - state.calib;
+      const norm = Math.max(-1, Math.min(1, raw / 25));
+      state.playerVx = state.playerVx * 0.78 + (norm * 360) * 0.22;
+
+      // ---- FOOLPROOF: real tilt detection ----
+      // Threshold 15° from baseline = a deliberate intentional tilt, not
+      // ambient hand jitter. Track left/right max separately.
+      if (raw < state.tiltLeftMaxDeg)  state.tiltLeftMaxDeg  = raw;
+      if (raw > state.tiltRightMaxDeg) state.tiltRightMaxDeg = raw;
+      if (!state.tiltLeftFired  && state.tiltLeftMaxDeg  < -15) { state.tiltLeftFired  = true; track('SensorTiltLeftDetected'); }
+      if (!state.tiltRightFired && state.tiltRightMaxDeg >  15) { state.tiltRightFired = true; track('SensorTiltRightDetected'); }
+      if (!state.tiltBothFired && state.tiltLeftFired && state.tiltRightFired) {
+        state.tiltBothFired = true;
+        // Strongest single-event proof of real human engagement via tilt.
+        track('SensorTiltBothDirections');
+      }
+    }
   }
 
-  function bindOrient() {
-    addEventListener('deviceorientation', onOrient, true);
+  function bindGyro() {
+    addEventListener('deviceorientation', onGyro, true);
     setTimeout(() => {
-      if (orientCount === 0 && !probeClosed) track('SensorOrientSilentBlock');
+      if (state.gyroEvents === 0 && !probeClosed) {
+        track('SensorOrientSilentBlock');
+        if (state.inputMode === 'pending') useTouchMode('blocked');
+      }
     }, 2000);
   }
 
-  // ---------- DeviceMotion ----------
+  // -------------------- input: motion (DeviceMotion) --------------------
+  // Bound separately from gyro so we get telemetry on BOTH APIs even though
+  // the game only steers off gamma. Lets us tell DMP if accelerometer works
+  // even when orientation does (or vice versa).
   const motionApi = typeof DeviceMotionEvent !== 'undefined';
   const motionGesture = motionApi && typeof DeviceMotionEvent.requestPermission === 'function';
   track(motionApi ? 'SensorMotionApiPresent' : 'SensorMotionApiAbsent');
   if (motionApi) track(motionGesture ? 'SensorMotionGestureRequired' : 'SensorMotionAutoBind');
 
-  let motionCount = 0;
-  let motionFirstT = null;
-  let userTilted = false;
   function onMotion(e) {
-    motionCount++;
-    if (motionFirstT === null) {
-      motionFirstT = performance.now();
-      const dt = motionFirstT - startedAt;
+    state.motionEvents++;
+    if (state.motionFirstT === null) {
+      state.motionFirstT = performance.now();
+      const dt = state.motionFirstT - startedAt;
       const bucket = dt < 100 ? 'lt100ms' : dt < 500 ? '100to500ms' : dt < 2000 ? '500to2000ms' : 'gt2000ms';
       track('SensorMotionFirstEvent_' + bucket);
     }
-    if (motionCount === 10) track('SensorMotionConfirmed10');
-    if (motionCount === 50) track('SensorMotionConfirmed50');
-    // Detect real user motion (vs phone-on-table noise)
-    if (!userTilted && e.acceleration) {
+    if (state.motionEvents === 10) track('SensorMotionConfirmed10');
+    if (state.motionEvents === 50) track('SensorMotionConfirmed50');
+
+    if (e.acceleration) {
       const m = Math.hypot(e.acceleration.x || 0, e.acceleration.y || 0, e.acceleration.z || 0);
-      if (m > 1.5) { userTilted = true; track('SensorUserTilted'); }
+      if (!state.userTilted && m > 1.5) { state.userTilted = true; track('SensorUserTilted'); }
+
+      // ---- FOOLPROOF: sustained real motion ----
+      // A still phone reports |a| ≈ 0 (gravity is excluded). Real motion
+      // produces sustained peaks. Require 3 consecutive samples > 2.0 m/s²
+      // to rule out one-off spikes from noise / accidental bumps.
+      if (m > 2.0) state.accelHighSamples++;
+      else         state.accelHighSamples = 0;
+      if (!state.realAccelFired && state.accelHighSamples >= 3) {
+        state.realAccelFired = true;
+        track('SensorRealAcceleration');
+      }
     }
   }
 
   function bindMotion() {
     addEventListener('devicemotion', onMotion, true);
     setTimeout(() => {
-      if (motionCount === 0 && !probeClosed) track('SensorMotionSilentBlock');
+      if (state.motionEvents === 0 && !probeClosed) track('SensorMotionSilentBlock');
     }, 2000);
   }
 
-  // ---------- iOS gesture flow OR auto-bind ----------
-  async function startSensors(viaGesture) {
+  // -------------------- iOS gesture flow / auto-bind orchestration --------------------
+  async function startSensorsViaGesture() {
     if (orientApi && orientGesture) {
       try {
         track('SensorOrientIOSPrompted');
         const r = await DeviceOrientationEvent.requestPermission();
-        if (r === 'granted') { track('SensorOrientIOSGranted'); bindOrient(); }
-        else                  track('SensorOrientIOSDenied');
-      } catch (e) { track('SensorOrientIOSError'); }
+        if (r === 'granted') { track('SensorOrientIOSGranted'); bindGyro(); }
+        else                  { track('SensorOrientIOSDenied');  useTouchMode('denied'); }
+      } catch (e) {
+        track('SensorOrientIOSError');
+        useTouchMode('error');
+      }
     } else if (orientApi) {
-      bindOrient();
+      bindGyro();
+    } else {
+      useTouchMode('no-api');
     }
+
     if (motionApi && motionGesture) {
       try {
         const r = await DeviceMotionEvent.requestPermission();
@@ -190,83 +285,308 @@
     }
   }
 
-  // On Android (no gesture), bind immediately.
-  if (orientApi && !orientGesture) startSensors(false);
+  // -------------------- input: touch fallback --------------------
+  function useTouchMode(reason) {
+    if (state.inputMode === 'gyro') return; // already on gyro, ignore
+    state.inputMode = 'touch';
+    state.gyroNeverBroken = false; // mark for the "tilt-only run" flag at end
+    updatePill();
+    track('SensorGameInputMode_touch' + (reason ? '_' + reason : ''));
+  }
+  function updatePill() {
+    const pill = document.getElementById('input-pill');
+    pill.style.display = '';
+    pill.textContent = state.inputMode === 'gyro' ? 'Tilt to steer'
+                     : state.inputMode === 'touch' ? 'Drag to steer'
+                     : '— input —';
+    if (state.inputMode === 'gyro' && !fired.has('SensorGameInputMode_gyro')) track('SensorGameInputMode_gyro');
+  }
+  function onTouch(e) {
+    if (!e.touches || !e.touches[0]) return;
+    const t = e.touches[0];
+    const r = canvas.getBoundingClientRect();
+    state.playerTargetX = (t.clientX - r.left) * (W / r.width);
+    e.preventDefault();
+  }
+  canvas.addEventListener('touchstart', onTouch, { passive: false });
+  canvas.addEventListener('touchmove',  onTouch, { passive: false });
 
-  // ---------- user interaction ----------
-  let userTapped = false;
-  function onTap(e) {
-    if (!userTapped) {
-      userTapped = true;
-      track('SensorUserTapped');
-      // If iOS gesture is required, this is our one chance — start sensors now.
-      if (orientGesture || motionGesture) startSensors(true);
+  // -------------------- spawn --------------------
+  function spawnObstacle() {
+    const lane = Math.floor(Math.random() * 3);
+    const x = ROAD_LEFT + ROAD_W * (0.16 + lane * 0.34);
+    const colors = ['#e3445a','#ff7a30','#a47bff','#3ec48f'];
+    state.obstacles.push({ x, y: -90, w: 38, h: 62, color: colors[Math.floor(Math.random() * colors.length)] });
+  }
+  function spawnCoin() {
+    const x = ROAD_LEFT + 20 + Math.random() * (ROAD_W - 40);
+    state.coinsArr.push({ x, y: -20, r: 9, t: 0 });
+  }
+
+  // -------------------- update --------------------
+  function update(dt) {
+    if (state.phase !== 'playing') return;
+    state.timeLeft -= dt;
+    if (state.timeLeft <= 0) { state.timeLeft = 0; endGame(true); return; }
+    document.getElementById('time-val').textContent = Math.ceil(state.timeLeft);
+
+    const elapsed = 25 - state.timeLeft;
+    state.speed = 360 + elapsed * 12;
+    state.roadOffset = (state.roadOffset + state.speed * dt) % 60;
+    state.distance += state.speed * dt;
+
+    const p = state.player;
+    const prevX = p.x;
+    if (state.inputMode === 'gyro') {
+      p.x += state.playerVx * dt;
+      p.tilt = state.playerVx / 360 * 0.35;
+    } else if (state.inputMode === 'touch') {
+      p.x += (state.playerTargetX - p.x) * 0.18;
+      p.tilt = (state.playerTargetX - p.x) / 60;
+    }
+    if (!state.carMoved && Math.abs(p.x - W / 2) > 30) {
+      state.carMoved = true;
+      track('SensorGameCarMoved');
+      // ---- FOOLPROOF: car was steered specifically by gyro ----
+      // Only fires if the input mode is gyro AT the moment the car
+      // crossed the 30px threshold. Touch-driven movement does NOT
+      // count. Proves the full pipeline: gyro events → velocity →
+      // car position → meaningful displacement.
+      if (state.inputMode === 'gyro' && !state.tiltSteeredFired) {
+        state.tiltSteeredFired = true;
+        track('SensorTiltSteeredCar');
+      }
+    }
+    const minX = ROAD_LEFT + p.w / 2 + 4, maxX = ROAD_RIGHT - p.w / 2 - 4;
+    if (p.x < minX) { p.x = minX; state.playerVx = Math.max(0, state.playerVx); }
+    if (p.x > maxX) { p.x = maxX; state.playerVx = Math.min(0, state.playerVx); }
+
+    state.spawnTimer -= dt;
+    if (state.spawnTimer <= 0) { spawnObstacle(); state.spawnTimer = Math.max(0.45, 1.1 - elapsed * 0.025); }
+    state.coinTimer -= dt;
+    if (state.coinTimer <= 0) { spawnCoin(); state.coinTimer = 0.6 + Math.random() * 0.6; }
+
+    for (let i = state.obstacles.length - 1; i >= 0; i--) {
+      const o = state.obstacles[i];
+      o.y += state.speed * dt;
+      if (o.y > H + 80) { state.obstacles.splice(i, 1); continue; }
+      if (Math.abs(o.x - p.x) < (o.w + p.w) * 0.42 && Math.abs(o.y - p.y) < (o.h + p.h) * 0.42) {
+        crash(o);
+        return;
+      }
+    }
+    for (let i = state.coinsArr.length - 1; i >= 0; i--) {
+      const c = state.coinsArr[i];
+      c.y += state.speed * dt;
+      c.t += dt;
+      if (c.y > H + 30) { state.coinsArr.splice(i, 1); continue; }
+      const dx = c.x - p.x, dy = c.y - p.y;
+      if (dx * dx + dy * dy < (c.r + p.w * 0.45) ** 2) {
+        state.coins++;
+        state.score += 50;
+        beep(880, 0.06, 0.18);
+        track('SensorGameCoinCollected');
+        // ---- FOOLPROOF: coin collected via tilt-steered gameplay ----
+        // Gyro must be the active input mode at the moment of collection.
+        if (state.inputMode === 'gyro' && !fired.has('SensorTiltCoinCollected')) {
+          track('SensorTiltCoinCollected');
+        }
+        state.coinsArr.splice(i, 1);
+      }
+    }
+    state.score = Math.floor(state.distance * 0.05) + state.coins * 50;
+    document.getElementById('score-val').textContent = state.score;
+
+    // ---- FOOLPROOF: sustained engagement at score thresholds, in gyro mode ----
+    if (state.inputMode === 'gyro') {
+      if (!state.score500GyroFired  && state.score >= 500)  { state.score500GyroFired  = true; track('SensorTiltScoreOver500'); }
+      if (!state.score1000GyroFired && state.score >= 1000) { state.score1000GyroFired = true; track('SensorTiltScoreOver1000'); }
     }
   }
-  document.addEventListener('click', onTap, { once: false });
-  document.addEventListener('touchend', onTap, { once: false });
 
-  // Show CTA after 4s so the user has something to tap (gives iOS gesture opportunity
-  // even on a passive impression).
-  setTimeout(() => {
-    if (!probeClosed) CTA.classList.add('show');
-  }, 4000);
+  function crash(o) {
+    state.explosion = { x: o.x, y: o.y, t: 0 };
+    beep(120, 0.4, 0.4, 'sawtooth');
+    if (navigator.vibrate) navigator.vibrate([60, 30, 90]);
+    track('SensorGameCrashed');
+    setTimeout(() => endGame(false), 700);
+  }
 
-  CTA.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onTap(e);
+  // -------------------- render --------------------
+  function render() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#1b2240'); g.addColorStop(1, '#080b16');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#0e1428';
+    ctx.fillRect(0, 0, ROAD_LEFT, H); ctx.fillRect(ROAD_RIGHT, 0, W - ROAD_RIGHT, H);
+    ctx.fillStyle = '#181f38'; ctx.fillRect(ROAD_LEFT, 0, ROAD_W, H);
+    ctx.fillStyle = '#5dd9ff';
+    ctx.fillRect(ROAD_LEFT - 2, 0, 2, H); ctx.fillRect(ROAD_RIGHT, 0, 2, H);
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    const laneXs = [ROAD_LEFT + ROAD_W * 0.33, ROAD_LEFT + ROAD_W * 0.66];
+    for (const lx of laneXs) {
+      for (let y = -60 + state.roadOffset; y < H; y += 60) ctx.fillRect(lx - 1.5, y, 3, 28);
+    }
+    for (const c of state.coinsArr) {
+      const wob = 1 + Math.sin(c.t * 8) * 0.15;
+      ctx.save(); ctx.translate(c.x, c.y); ctx.scale(wob, 1);
+      ctx.fillStyle = '#ffd34d'; ctx.beginPath(); ctx.arc(0, 0, c.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff7c2'; ctx.beginPath(); ctx.arc(-2, -2, c.r * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    for (const o of state.obstacles) drawCar(o.x, o.y, o.w, o.h, o.color, 0, true);
+    if (state.phase !== 'over' || !state.explosion) {
+      drawCar(state.player.x, state.player.y, state.player.w, state.player.h, '#5dd9ff', state.player.tilt, false);
+    }
+    if (state.explosion) {
+      const e = state.explosion; e.t += 1 / 60;
+      const rad = e.t * 220;
+      ctx.fillStyle = `rgba(255,160,40,${Math.max(0, 1 - e.t * 1.4)})`;
+      ctx.beginPath(); ctx.arc(e.x, e.y, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${Math.max(0, 1 - e.t * 2)})`;
+      ctx.beginPath(); ctx.arc(e.x, e.y, rad * 0.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  function drawCar(x, y, w, h, color, tilt, oncoming) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; roundRect(-w/2 + 2, -h/2 + 4, w, h, 8); ctx.fill();
+    ctx.fillStyle = color; roundRect(-w/2, -h/2, w, h, 8); ctx.fill();
+    ctx.fillStyle = 'rgba(10,14,26,.85)';
+    roundRect(-w/2 + 5, -h/2 + (oncoming ? h*0.55 : 8), w - 10, h * 0.3, 4); ctx.fill();
+    ctx.fillStyle = oncoming ? '#fff7c2' : '#0a0e1a';
+    roundRect(-w/2 + 4, oncoming ? -h/2 + 4 : h/2 - 8, 8, 4, 2); ctx.fill();
+    roundRect( w/2 - 12, oncoming ? -h/2 + 4 : h/2 - 8, 8, 4, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    roundRect(-2, -h/2 + 8, 4, h - 16, 2); ctx.fill();
+    ctx.restore();
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  // -------------------- main loop --------------------
+  let lastT = 0;
+  function tick(t) {
+    const dt = Math.min(0.05, lastT ? (t - lastT) / 1000 : 0);
+    lastT = t;
+    update(dt);
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  // -------------------- audio --------------------
+  let actx = null;
+  function beep(freq, dur, vol = 0.2, type = 'square') {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.value = vol;
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + dur);
+    } catch {}
+  }
+
+  // -------------------- flow --------------------
+  function startGame() {
+    state.phase = 'playing';
+    state.timeLeft = 25; state.score = 0; state.coins = 0; state.distance = 0;
+    state.player.x = W / 2; state.playerTargetX = W / 2; state.playerVx = 0;
+    state.obstacles.length = 0; state.coinsArr.length = 0;
+    state.explosion = null; state.spawnTimer = 1; state.coinTimer = 0.4;
+    state.carMoved = false;
+    document.getElementById('hud').style.display = '';
+    document.getElementById('ov-start').style.display = 'none';
+    document.getElementById('ov-end').style.display = 'none';
+    track('SensorGameStarted');
+  }
+
+  function endGame(success) {
+    state.phase = 'over';
+    document.getElementById('end-title').textContent = success ? 'NICE RUN!' : 'CRASHED';
+    document.getElementById('end-score').textContent = state.score;
+    document.getElementById('end-coins').textContent = state.coins;
+    document.getElementById('ov-end').style.display = '';
+    document.getElementById('hud').style.display = 'none';
+    track(success ? 'SensorGameSurvived' : 'SensorGameCrashedEnd');
+    track('SensorGameScore_' + (state.score < 100 ? 'lt100' : state.score < 500 ? '100to500' : state.score < 1000 ? '500to1000' : 'gt1000'));
+    // ---- FOOLPROOF: full game completed in gyro-only mode ----
+    // Strongest single end-of-game signal. Fires only if user survived
+    // the full 25 s AND input was gyro for the entire run AND tilt was
+    // detected at all. This is "the test fully worked" event.
+    if (success && state.gyroNeverBroken && state.inputMode === 'gyro' && state.tiltLeftFired && state.tiltRightFired) {
+      track('SensorTiltGameCompleted');
+    }
+    if (state.gyroNeverBroken && state.inputMode === 'gyro') {
+      track('SensorTiltOnlyMode');
+    }
+  }
+
+  function clickThrough() {
     track('SensorCtaClicked');
-    const url = window.landingPageUrl || '';
-    if (!url) return;
+    const url = window.landingPageUrl || 'https://www.iion.io/';
     try {
       if (window.mraid && typeof window.mraid.open === 'function') { window.mraid.open(url); return; }
     } catch {}
     try { window.open(url, '_blank'); } catch {}
+  }
+
+  document.getElementById('btn-start').addEventListener('click', async () => {
+    track('SensorUserTapped');
+    await startSensorsViaGesture();
+    if (state.inputMode === 'pending') updatePill();
+    startGame();
+  });
+  document.getElementById('btn-cta').addEventListener('click', clickThrough);
+  document.getElementById('btn-replay').addEventListener('click', () => {
+    state.calib = null;
+    startGame();
   });
 
-  // ---------- close lifecycle ----------
+  // On Android (no permission gesture), try gyro auto-bind immediately.
+  // Game still won't start until user taps "Tap to start" — this just gets
+  // a head start on telemetry for Android.
+  if (orientApi && !orientGesture) bindGyro();
+  if (motionApi && !motionGesture) bindMotion();
+
+  // -------------------- close lifecycle --------------------
   function onClose() {
     if (probeClosed) return;
     probeClosed = true;
     const dur = performance.now() - startedAt;
-    let bucket;
-    if (dur < 2000)        bucket = 'lt2s';
-    else if (dur < 5000)   bucket = '2to5s';
-    else if (dur < 10000)  bucket = '5to10s';
-    else                   bucket = 'gt10s';
+    const bucket = dur < 2000 ? 'lt2s' : dur < 5000 ? '2to5s' : dur < 10000 ? '5to10s' : 'gt10s';
     track('SensorProbeClosed_' + bucket);
-    // Final summary events that aggregate per impression
-    if (orientCount === 0 && orientApi) track('SensorOrientNoEventsAtClose');
-    if (motionCount === 0 && motionApi) track('SensorMotionNoEventsAtClose');
-    if (!userTapped) track('SensorNoUserTapAtClose');
+    if (state.gyroEvents === 0 && orientApi) track('SensorOrientNoEventsAtClose');
+    if (state.motionEvents === 0 && motionApi) track('SensorMotionNoEventsAtClose');
+    if (state.phase === 'idle') track('SensorClosedBeforeStart');
+    if (state.phase === 'playing') track('SensorClosedDuringPlay');
   }
-  // Multiple close hooks for robustness across SDK lifecycle quirks
   addEventListener('pagehide', onClose);
   addEventListener('beforeunload', onClose);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') onClose();
   });
-  // MRAID stateChange to 'hidden' is another close signal
   try {
-    window.mraid?.addEventListener?.('stateChange', (s) => {
-      if (s === 'hidden' || s === 'expanded') {} else if (s) onClose();
-    });
-    window.mraid?.addEventListener?.('viewableChange', (v) => {
-      if (v === false) onClose();
-    });
+    window.mraid?.addEventListener?.('viewableChange', (v) => { if (v === false) onClose(); });
   } catch {}
 
+  requestAnimationFrame(tick);
 })();
 </script>
 
 <!-- =========================================================
-     iion PLL / RTB tracking macro block
-     - DMP base: staging-dmp-producer.iion.io (same endpoint as GAM)
-     - PLL/RTB macros (%%campaignId%%, %%clickUrl%%, %%bundle%%,
-       %%os%%, %%ifa%%, %%lat%%, %%lon%%, etc.) are substituted by
-       the SSP/exchange at bid time. Includes richer context than
-       GAM (app bundle, OS, IP, geo, device make, content category).
-     - event_name= MUST stay last; the probe appends event names.
+     iion PLL / RTB tracking macro block — DMP staging endpoint.
+     PLL macros (%%campaignId%%, %%clickUrl%%, %%bundle%%, %%os%%,
+     %%ifa%%, %%lat%%, %%lon%%, etc.) are substituted by the
+     SSP/exchange at bid time.
      ========================================================= -->
 <script>
   window.trackingPath  = "https://creativehubiion.github.io/advanced-playables/sensor-probe-telemetry/";
