@@ -265,6 +265,18 @@
   </div>
 </section>
 
+<!-- GAM MACROS -->
+<section class="card">
+  <h2>GAM tracking macros <span id="badge-gam" class="pill muted">—</span></h2>
+  <div class="kv">
+    <div class="k">trackingPath</div><div class="v" id="gam-path">—</div>
+    <div class="k">trackingType</div><div class="v" id="gam-type">—</div>
+    <div class="k">setTracker</div><div class="v" id="gam-click">—</div>
+    <div class="k">landingPageUrl</div><div class="v" id="gam-lp">—</div>
+    <div class="k">Resolved?</div><div class="v" id="gam-resolved">—</div>
+  </div>
+</section>
+
 <!-- DIAGNOSTICS DUMP -->
 <section class="card">
   <h2>Last events</h2>
@@ -641,6 +653,12 @@
       orientation: { api: orientApi, requestPermission: orientReq, eventsReceived: orientCount },
       motion: { api: motionApi, requestPermission: motionReq, eventsReceived: motionCount, peakAccel: motionPeak },
       mic: { gum: hasGUM, peakRms: micPeak },
+      gam: {
+        trackingPath: window.trackingPath ?? null,
+        trackingType: window.trackingType ?? null,
+        setTracker: window.setTracker ?? null,
+        landingPageUrl: window.landingPageUrl ?? null
+      },
       log: $('event-log').textContent
     };
     const json = JSON.stringify(dump, null, 2);
@@ -661,8 +679,54 @@
     }
   });
 
+  // ---------- GAM macro readout ----------
+  const readGam = () => {
+    const tp = window.trackingPath ?? '';
+    const tt = window.trackingType ?? '';
+    const st = window.setTracker ?? '';
+    const lp = window.landingPageUrl ?? '';
+    $('gam-path').textContent  = tp || '(unset)';
+    $('gam-type').textContent  = tt || '(unset)';
+    $('gam-click').textContent = st || '(unset)';
+    $('gam-lp').textContent    = lp || '(unset)';
+    // A macro is "resolved" if no raw token like %ebuy! or %%CLICK_URL_UNESC%% remains.
+    const rawMacro = /%e[a-z]+!|%%[A-Z_]+%%|\$\{[A-Z_]+}/;
+    const all = [tp, tt, st, lp].join(' ');
+    if (!all.trim()) {
+      setBadge($('badge-gam'), 'muted', 'absent');
+      $('gam-resolved').textContent = 'no GAM block on page';
+    } else if (rawMacro.test(all)) {
+      setBadge($('badge-gam'), 'warn', 'unresolved');
+      $('gam-resolved').textContent = 'no — raw macro tokens still present (creative not served via GAM, or GAM did not substitute)';
+    } else {
+      setBadge($('badge-gam'), 'ok', 'resolved');
+      $('gam-resolved').textContent = 'yes — all macros substituted';
+    }
+  };
+  // Read once now, and again after a beat (in case GAM injects late).
+  readGam();
+  setTimeout(readGam, 500);
+  setTimeout(readGam, 2000);
+
   log('probe initialized');
 })();
+</script>
+
+<!-- ============================================================
+     iion GAM tracking macro block
+     This block follows iion's standard creative convention. When
+     served via GAM, the tokens (%ebuy!, %epid!, %ecid!,
+     %%ADVERTISING_IDENTIFIER_PLAIN%%, %%SITE%%, %%CLICK_URL_UNESC%%,
+     ${GDPR}, ${GDPR_CONSENT_XXXX}, etc.) are substituted by the ad
+     server before the creative reaches the WebView. The probe's
+     "GAM tracking macros" card reads these values and reports
+     whether substitution actually happened.
+     ============================================================ -->
+<script>
+  window.trackingPath  = "https://creativehubiion.github.io/advanced-playables/sensor-probe/";
+  window.trackingType  = "https://staging-dmp-producer.iion.io/tracker/impressions?platform=GAM&campaign_id=%ebuy!&publisher_id=%epid!&creative_id=%ecid!&maid=%%ADVERTISING_IDENTIFIER_PLAIN%%&page_url=%%SITE%%&height=%%HEIGHT%%&width=%%WIDTH%%&video_min_duration=%%VIDEO_DURATION%%&gdpr=${GDPR}&gdpr_consent=${GDPR_CONSENT_XXXX}&demand_id=%eadv!&line_item=%eaid!&event_name=";
+  window.setTracker    = "%%CLICK_URL_UNESC%%";
+  window.landingPageUrl = window.setTracker + "https://creativehubiion.github.io/advanced-playables/";
 </script>
 </body>
 </html>

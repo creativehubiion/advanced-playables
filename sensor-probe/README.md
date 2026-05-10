@@ -15,6 +15,7 @@ A single-file HTML5 creative that detects, in real time, what the surrounding ad
 - **Microphone** — `getUserMedia` available, `AudioContext` available, permission state, live RMS volume + meter, peak RMS
 - **Other capabilities** — camera/geolocation permission states, `navigator.vibrate`, WebGL (with unmasked renderer), Web Audio, Battery API, Wake Lock, Fullscreen
 - **Frame rate** — rolling 60-frame fps badge in the header
+- **GAM tracking macros** — reads `window.trackingPath`, `window.trackingType`, `window.setTracker`, `window.landingPageUrl` (iion's standard tracking block) and flags whether the GAM macro tokens (`%ebuy!`, `%%CLICK_URL_UNESC%%`, `${GDPR}` …) have been substituted by the ad server. A useful sanity check independent of the sensor work.
 - **Event log** — last ~40 events (MRAID lifecycle, permission outcomes, errors)
 
 A **Copy** button in the header serializes everything (including the event log) to JSON and copies to clipboard, or pastes into the event-log box if clipboard write is denied.
@@ -31,6 +32,7 @@ A **Copy** button in the header serializes everything (including the event log) 
 1. ZIP the contents of this directory (`index.html` at the root of the ZIP).
 2. In GAM, upload as an **HTML5** creative.
 3. The `<script src="mraid.js"></script>` tag is intentional — the SDK injects an `mraid.js` stub when serving as MRAID. When loaded standalone (e.g., in mobile Chrome) it 404s harmlessly; the probe defensively checks `window.mraid` before using it.
+4. The single `index.html` is **fully self-contained** — no external CSS, JS, images, fonts, or video to host. It follows iion's standard GAM creative shape (viewport meta + `ad.size` meta + style block + body + `window.tracking*` block at the end of body).
 
 ### C. Standalone in mobile Chrome (control sample)
 Open `https://creativehubiion.github.io/advanced-playables/sensor-probe/` directly in Chrome on the test phone and run the same checks. This gives you a "no SDK in the way" baseline to compare with the in-app reading.
