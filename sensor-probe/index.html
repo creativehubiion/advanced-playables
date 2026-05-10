@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="ad.size" content="width=320,height=480">
+<title>iion Sensor Probe</title>
+<script src="mraid.js"></script>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14181d;
+    --panel-2: #1c2128;
+    --line: #2a313a;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --accent: #58a6ff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.4;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: contain;
+    touch-action: manipulation;
+  }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 8px 8px 80px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+    padding: 6px 4px 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  h1 span { color: var(--accent); }
+  .pill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .pill.ok   { background: rgba(63,185,80,.15);  color: var(--ok); }
+  .pill.warn { background: rgba(210,153,34,.15); color: var(--warn); }
+  .pill.bad  { background: rgba(248,81,73,.15);  color: var(--bad); }
+  .pill.muted{ background: rgba(139,148,158,.15);color: var(--muted); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .card h2 {
+    background: var(--panel-2);
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 2px 8px; padding: 8px 10px; font-size: 11.5px; }
+  .kv .k { color: var(--muted); }
+  .kv .v { color: var(--text); word-break: break-all; }
+  .kv .v.num { color: var(--accent); }
+
+  .live-num {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+
+  .actions {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    background: rgba(11,13,16,0.95);
+    border-top: 1px solid var(--line);
+    padding: 8px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    backdrop-filter: blur(6px);
+  }
+  button {
+    flex: 1 1 auto;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 90px;
+  }
+  button:active { background: #2a313a; }
+  button.primary { background: var(--accent); color: #0b0d10; border-color: var(--accent); font-weight: 600; }
+
+  .meter {
+    height: 4px;
+    background: var(--panel-2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .meter > div {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 60ms linear;
+  }
+
+  pre.dump {
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 10.5px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 140px;
+    overflow: auto;
+  }
+
+  .row { display: flex; align-items: center; gap: 6px; }
+  .grow { flex: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>iion <span>sensor probe</span></h1>
+  <div class="row">
+    <span id="badge-fps" class="pill muted">— fps</span>
+    <button id="btn-copy" style="flex:0 0 auto; min-width: 70px;">Copy</button>
+  </div>
+</header>
+
+<!-- ENVIRONMENT -->
+<section class="card">
+  <h2>Environment <span id="badge-iframe" class="pill muted">—</span></h2>
+  <div class="kv">
+    <div class="k">User agent</div><div class="v" id="env-ua">—</div>
+    <div class="k">Platform</div><div class="v" id="env-platform">—</div>
+    <div class="k">Vendor</div><div class="v" id="env-vendor">—</div>
+    <div class="k">Origin</div><div class="v" id="env-origin">—</div>
+    <div class="k">Top-level?</div><div class="v" id="env-toplevel">—</div>
+    <div class="k">Referrer</div><div class="v" id="env-referrer">—</div>
+    <div class="k">Viewport</div><div class="v num" id="env-viewport">—</div>
+    <div class="k">Screen</div><div class="v num" id="env-screen">—</div>
+    <div class="k">DPR</div><div class="v num" id="env-dpr">—</div>
+    <div class="k">Touch points</div><div class="v num" id="env-touch">—</div>
+    <div class="k">Online</div><div class="v" id="env-online">—</div>
+    <div class="k">Connection</div><div class="v" id="env-connection">—</div>
+    <div class="k">Hardware</div><div class="v" id="env-hardware">—</div>
+  </div>
+</section>
+
+<!-- MRAID -->
+<section class="card">
+  <h2>MRAID <span id="badge-mraid" class="pill muted">checking</span></h2>
+  <div class="kv">
+    <div class="k">Present</div><div class="v" id="mraid-present">—</div>
+    <div class="k">Version</div><div class="v" id="mraid-version">—</div>
+    <div class="k">State</div><div class="v" id="mraid-state">—</div>
+    <div class="k">Viewable</div><div class="v" id="mraid-viewable">—</div>
+    <div class="k">Placement</div><div class="v" id="mraid-placement">—</div>
+    <div class="k">Max size</div><div class="v num" id="mraid-maxsize">—</div>
+    <div class="k">Screen size</div><div class="v num" id="mraid-screen">—</div>
+    <div class="k">Supports</div><div class="v" id="mraid-supports">—</div>
+  </div>
+</section>
+
+<!-- PERMISSIONS POLICY -->
+<section class="card">
+  <h2>Permissions Policy (iframe allow)</h2>
+  <div class="kv" id="pp-kv"><!-- filled at runtime --></div>
+</section>
+
+<!-- DEVICE ORIENTATION -->
+<section class="card">
+  <h2>DeviceOrientation <span id="badge-orient" class="pill muted">waiting</span></h2>
+  <div class="kv">
+    <div class="k">API present</div><div class="v" id="orient-api">—</div>
+    <div class="k">requestPermission</div><div class="v" id="orient-req">—</div>
+    <div class="k">Permission state</div><div class="v" id="orient-perm">—</div>
+    <div class="k">Events received</div><div class="v num" id="orient-count">0</div>
+    <div class="k">alpha (z)</div><div class="v live-num" id="orient-alpha">—</div>
+    <div class="k">beta  (x)</div><div class="v live-num" id="orient-beta">—</div>
+    <div class="k">gamma (y)</div><div class="v live-num" id="orient-gamma">—</div>
+    <div class="k">absolute</div><div class="v" id="orient-abs">—</div>
+    <div class="k">webkit compass</div><div class="v live-num" id="orient-compass">—</div>
+  </div>
+</section>
+
+<!-- DEVICE MOTION -->
+<section class="card">
+  <h2>DeviceMotion <span id="badge-motion" class="pill muted">waiting</span></h2>
+  <div class="kv">
+    <div class="k">API present</div><div class="v" id="motion-api">—</div>
+    <div class="k">requestPermission</div><div class="v" id="motion-req">—</div>
+    <div class="k">Permission state</div><div class="v" id="motion-perm">—</div>
+    <div class="k">Events received</div><div class="v num" id="motion-count">0</div>
+    <div class="k">Sample rate</div><div class="v num" id="motion-rate">— Hz</div>
+    <div class="k">accel x/y/z</div><div class="v live-num" id="motion-accel">—</div>
+    <div class="k">accel+g x/y/z</div><div class="v live-num" id="motion-accelg">—</div>
+    <div class="k">rotation rate</div><div class="v live-num" id="motion-rot">—</div>
+    <div class="k">interval</div><div class="v num" id="motion-interval">— ms</div>
+    <div class="k">|a| peak</div><div class="v num" id="motion-peak">0.00</div>
+  </div>
+</section>
+
+<!-- MIC -->
+<section class="card">
+  <h2>Microphone <span id="badge-mic" class="pill muted">idle</span></h2>
+  <div class="kv">
+    <div class="k">getUserMedia</div><div class="v" id="mic-gum">—</div>
+    <div class="k">Permission state</div><div class="v" id="mic-perm">—</div>
+    <div class="k">AudioContext</div><div class="v" id="mic-ac">—</div>
+    <div class="k">Live RMS</div><div class="v live-num" id="mic-rms">—</div>
+    <div class="k">Peak RMS</div><div class="v num" id="mic-peak">0.00</div>
+  </div>
+  <div class="kv" style="padding-top:0">
+    <div class="k">Volume</div><div class="v"><div class="meter"><div id="mic-bar"></div></div></div>
+  </div>
+</section>
+
+<!-- OTHER PERMISSIONS -->
+<section class="card">
+  <h2>Other capabilities</h2>
+  <div class="kv">
+    <div class="k">Camera perm</div><div class="v" id="cap-cam">—</div>
+    <div class="k">Geolocation perm</div><div class="v" id="cap-geo">—</div>
+    <div class="k">Vibration API</div><div class="v" id="cap-vib">—</div>
+    <div class="k">WebGL</div><div class="v" id="cap-webgl">—</div>
+    <div class="k">WebGL renderer</div><div class="v" id="cap-webgl-r">—</div>
+    <div class="k">WebAudio</div><div class="v" id="cap-wa">—</div>
+    <div class="k">Battery API</div><div class="v" id="cap-bat">—</div>
+    <div class="k">Wake Lock</div><div class="v" id="cap-wl">—</div>
+    <div class="k">Fullscreen</div><div class="v" id="cap-fs">—</div>
+  </div>
+</section>
+
+<!-- DIAGNOSTICS DUMP -->
+<section class="card">
+  <h2>Last events</h2>
+  <pre class="dump" id="event-log">(no events yet)</pre>
+</section>
+
+<div class="actions">
+  <button id="btn-orient" class="primary">Enable tilt</button>
+  <button id="btn-motion">Enable motion</button>
+  <button id="btn-mic">Enable mic</button>
+  <button id="btn-vib">Vibrate</button>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n, d = 2) => (typeof n === 'number' && isFinite(n)) ? n.toFixed(d) : '—';
+  const setBadge = (el, klass, text) => {
+    el.classList.remove('ok', 'warn', 'bad', 'muted');
+    el.classList.add(klass);
+    el.textContent = text;
+  };
+  const log = (() => {
+    const ring = [];
+    const el = $('event-log');
+    return (line) => {
+      const t = new Date().toISOString().substr(11, 12);
+      ring.push(`[${t}] ${line}`);
+      if (ring.length > 40) ring.shift();
+      el.textContent = ring.join('\n');
+    };
+  })();
+
+  // ---------- environment ----------
+  $('env-ua').textContent       = navigator.userAgent;
+  $('env-platform').textContent = navigator.platform || '—';
+  $('env-vendor').textContent   = navigator.vendor || '—';
+  $('env-origin').textContent   = location.origin;
+  const isTop = (() => { try { return window.top === window.self; } catch { return false; } })();
+  $('env-toplevel').textContent = isTop ? 'yes (top window)' : 'no (iframed)';
+  setBadge($('badge-iframe'), isTop ? 'warn' : 'ok', isTop ? 'top' : 'iframed');
+  $('env-referrer').textContent = document.referrer || '(none)';
+  const updateViewport = () => {
+    $('env-viewport').textContent = `${innerWidth}×${innerHeight}`;
+  };
+  updateViewport();
+  addEventListener('resize', updateViewport);
+  $('env-screen').textContent  = `${screen.width}×${screen.height}`;
+  $('env-dpr').textContent     = String(devicePixelRatio || 1);
+  $('env-touch').textContent   = String(navigator.maxTouchPoints ?? 0);
+  $('env-online').textContent  = navigator.onLine ? 'yes' : 'no';
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  $('env-connection').textContent = conn
+    ? `${conn.effectiveType || '?'} · ${conn.downlink ?? '?'} Mb · rtt ${conn.rtt ?? '?'}`
+    : 'unavailable';
+  $('env-hardware').textContent = `cores ${navigator.hardwareConcurrency ?? '?'} · mem ${navigator.deviceMemory ?? '?'}GB`;
+
+  // ---------- permissions policy ----------
+  const ppFeatures = [
+    'accelerometer', 'gyroscope', 'magnetometer',
+    'microphone', 'camera', 'geolocation',
+    'autoplay', 'fullscreen', 'web-share',
+    'screen-wake-lock', 'ambient-light-sensor'
+  ];
+  const ppContainer = $('pp-kv');
+  ppFeatures.forEach((f) => {
+    const k = document.createElement('div'); k.className = 'k'; k.textContent = f;
+    const v = document.createElement('div'); v.className = 'v';
+    let allowed = null;
+    try {
+      const fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && typeof fp.allowsFeature === 'function') {
+        allowed = fp.allowsFeature(f);
+      }
+    } catch {}
+    if (allowed === null) {
+      v.innerHTML = '<span class="pill muted">unknown</span>';
+    } else if (allowed) {
+      v.innerHTML = '<span class="pill ok">allowed</span>';
+    } else {
+      v.innerHTML = '<span class="pill bad">blocked</span>';
+    }
+    ppContainer.appendChild(k); ppContainer.appendChild(v);
+  });
+
+  // ---------- MRAID ----------
+  const initMraid = () => {
+    const m = window.mraid;
+    if (!m) {
+      setBadge($('badge-mraid'), 'muted', 'absent');
+      $('mraid-present').textContent = 'no — running outside MRAID host';
+      return;
+    }
+    $('mraid-present').textContent = 'yes';
+    setBadge($('badge-mraid'), 'ok', 'present');
+    const safe = (fn) => { try { return fn(); } catch (e) { return `(err: ${e.message})`; } };
+    $('mraid-version').textContent   = safe(() => m.getVersion?.());
+    $('mraid-state').textContent     = safe(() => m.getState?.());
+    $('mraid-viewable').textContent  = safe(() => String(m.isViewable?.()));
+    $('mraid-placement').textContent = safe(() => m.getPlacementType?.());
+    const ms = safe(() => m.getMaxSize?.());
+    $('mraid-maxsize').textContent = ms && ms.width ? `${ms.width}×${ms.height}` : String(ms);
+    const ss = safe(() => m.getScreenSize?.());
+    $('mraid-screen').textContent  = ss && ss.width ? `${ss.width}×${ss.height}` : String(ss);
+    const supports = ['sms','tel','calendar','storePicture','inlineVideo','vpaid'];
+    $('mraid-supports').textContent = supports
+      .map(s => `${s}:${safe(() => m.supports?.(s))}`).join(' ');
+
+    if (typeof m.addEventListener === 'function') {
+      m.addEventListener('viewableChange', (v) => { $('mraid-viewable').textContent = String(v); log(`mraid viewableChange ${v}`); });
+      m.addEventListener('stateChange', (s) => { $('mraid-state').textContent = s; log(`mraid stateChange ${s}`); });
+      m.addEventListener('sizeChange', (w, h) => log(`mraid sizeChange ${w}×${h}`));
+      m.addEventListener('error', (msg, action) => log(`mraid error ${action}: ${msg}`));
+    }
+  };
+  if (window.mraid) {
+    const m = window.mraid;
+    if (typeof m.getState === 'function' && m.getState() === 'loading') {
+      m.addEventListener('ready', initMraid);
+    } else {
+      initMraid();
+    }
+  } else {
+    initMraid();
+  }
+
+  // ---------- permission state lookups ----------
+  const queryPerm = async (name, target) => {
+    if (!navigator.permissions?.query) {
+      target.textContent = 'Permissions API unavailable';
+      return;
+    }
+    try {
+      const r = await navigator.permissions.query({ name });
+      target.textContent = r.state;
+      r.onchange = () => { target.textContent = r.state; };
+    } catch (e) {
+      target.textContent = `(err: ${e.message})`;
+    }
+  };
+  queryPerm('microphone', $('mic-perm'));
+  queryPerm('camera', $('cap-cam'));
+  queryPerm('geolocation', $('cap-geo'));
+
+  // ---------- DeviceOrientation ----------
+  const orientApi = typeof DeviceOrientationEvent !== 'undefined';
+  const orientReq = orientApi && typeof DeviceOrientationEvent.requestPermission === 'function';
+  $('orient-api').innerHTML = orientApi
+    ? '<span class="pill ok">yes</span>'
+    : '<span class="pill bad">no</span>';
+  $('orient-req').innerHTML = orientReq
+    ? '<span class="pill warn">yes — gesture required</span>'
+    : '<span class="pill ok">no — auto</span>';
+  $('orient-perm').textContent = orientReq ? 'pending user gesture' : 'n/a';
+
+  let orientCount = 0;
+  const onOrient = (e) => {
+    orientCount++;
+    $('orient-count').textContent = String(orientCount);
+    $('orient-alpha').textContent = fmt(e.alpha, 1);
+    $('orient-beta').textContent  = fmt(e.beta, 1);
+    $('orient-gamma').textContent = fmt(e.gamma, 1);
+    $('orient-abs').textContent   = String(e.absolute);
+    if ('webkitCompassHeading' in e) {
+      $('orient-compass').textContent = fmt(e.webkitCompassHeading, 1);
+    }
+    if (orientCount === 1) { setBadge($('badge-orient'), 'ok', 'firing'); log('orientation events firing'); }
+  };
+
+  const startOrient = async () => {
+    if (!orientApi) { log('DeviceOrientation API absent'); return; }
+    try {
+      if (orientReq) {
+        const state = await DeviceOrientationEvent.requestPermission();
+        $('orient-perm').textContent = state;
+        if (state !== 'granted') { setBadge($('badge-orient'), 'bad', 'denied'); return; }
+      }
+      addEventListener('deviceorientation', onOrient, true);
+      // 1.5s sniff: if no events arrive, mark as silently blocked
+      setTimeout(() => {
+        if (orientCount === 0) {
+          setBadge($('badge-orient'), 'bad', 'silent');
+          log('no DeviceOrientation events after 1500ms — likely Permissions Policy block');
+        }
+      }, 1500);
+    } catch (e) {
+      log(`orient error: ${e.message}`);
+      setBadge($('badge-orient'), 'bad', 'error');
+    }
+  };
+
+  // ---------- DeviceMotion ----------
+  const motionApi = typeof DeviceMotionEvent !== 'undefined';
+  const motionReq = motionApi && typeof DeviceMotionEvent.requestPermission === 'function';
+  $('motion-api').innerHTML = motionApi
+    ? '<span class="pill ok">yes</span>'
+    : '<span class="pill bad">no</span>';
+  $('motion-req').innerHTML = motionReq
+    ? '<span class="pill warn">yes — gesture required</span>'
+    : '<span class="pill ok">no — auto</span>';
+  $('motion-perm').textContent = motionReq ? 'pending user gesture' : 'n/a';
+
+  let motionCount = 0;
+  let motionPeak = 0;
+  let motionFirstT = 0;
+  const onMotion = (e) => {
+    motionCount++;
+    if (motionFirstT === 0) motionFirstT = performance.now();
+    const elapsed = (performance.now() - motionFirstT) / 1000;
+    if (elapsed > 0) {
+      $('motion-rate').textContent = `${(motionCount / elapsed).toFixed(1)} Hz`;
+    }
+    $('motion-count').textContent = String(motionCount);
+    const a  = e.acceleration || {};
+    const ag = e.accelerationIncludingGravity || {};
+    const r  = e.rotationRate || {};
+    $('motion-accel').textContent  = `${fmt(a.x)} ${fmt(a.y)} ${fmt(a.z)}`;
+    $('motion-accelg').textContent = `${fmt(ag.x)} ${fmt(ag.y)} ${fmt(ag.z)}`;
+    $('motion-rot').textContent    = `${fmt(r.alpha)} ${fmt(r.beta)} ${fmt(r.gamma)}`;
+    $('motion-interval').textContent = `${fmt(e.interval, 1)} ms`;
+    const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+    if (mag > motionPeak) {
+      motionPeak = mag;
+      $('motion-peak').textContent = mag.toFixed(2);
+    }
+    if (motionCount === 1) { setBadge($('badge-motion'), 'ok', 'firing'); log('motion events firing'); }
+  };
+
+  const startMotion = async () => {
+    if (!motionApi) { log('DeviceMotion API absent'); return; }
+    try {
+      if (motionReq) {
+        const state = await DeviceMotionEvent.requestPermission();
+        $('motion-perm').textContent = state;
+        if (state !== 'granted') { setBadge($('badge-motion'), 'bad', 'denied'); return; }
+      }
+      addEventListener('devicemotion', onMotion, true);
+      setTimeout(() => {
+        if (motionCount === 0) {
+          setBadge($('badge-motion'), 'bad', 'silent');
+          log('no DeviceMotion events after 1500ms — likely Permissions Policy block');
+        }
+      }, 1500);
+    } catch (e) {
+      log(`motion error: ${e.message}`);
+      setBadge($('badge-motion'), 'bad', 'error');
+    }
+  };
+
+  // ---------- Microphone ----------
+  const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  $('mic-gum').innerHTML = hasGUM ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+  $('mic-ac').innerHTML  = (window.AudioContext || window.webkitAudioContext)
+    ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+
+  let micPeak = 0;
+  const startMic = async () => {
+    if (!hasGUM) { setBadge($('badge-mic'), 'bad', 'no api'); return; }
+    setBadge($('badge-mic'), 'warn', 'requesting');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      const src = ctx.createMediaStreamSource(stream);
+      const an  = ctx.createAnalyser();
+      an.fftSize = 1024;
+      src.connect(an);
+      const buf = new Float32Array(an.fftSize);
+      const tick = () => {
+        an.getFloatTimeDomainData(buf);
+        let s = 0;
+        for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+        const rms = Math.sqrt(s / buf.length);
+        $('mic-rms').textContent = rms.toFixed(4);
+        if (rms > micPeak) { micPeak = rms; $('mic-peak').textContent = rms.toFixed(4); }
+        $('mic-bar').style.width = `${Math.min(100, rms * 400)}%`;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      setBadge($('badge-mic'), 'ok', 'live');
+      log('mic stream live');
+    } catch (e) {
+      setBadge($('badge-mic'), 'bad', 'denied');
+      log(`mic error: ${e.name} ${e.message}`);
+    }
+  };
+
+  // ---------- other capabilities ----------
+  $('cap-vib').innerHTML = ('vibrate' in navigator)
+    ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    $('cap-webgl').innerHTML = gl
+      ? `<span class="pill ok">${gl instanceof WebGL2RenderingContext ? 'webgl2' : 'webgl1'}</span>`
+      : '<span class="pill bad">no</span>';
+    if (gl) {
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      const r = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      $('cap-webgl-r').textContent = r || '(masked)';
+    }
+  } catch (e) { $('cap-webgl').textContent = `(err: ${e.message})`; }
+  $('cap-wa').innerHTML = (window.AudioContext || window.webkitAudioContext)
+    ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+  if (navigator.getBattery) {
+    navigator.getBattery().then((b) => {
+      $('cap-bat').textContent = `level ${(b.level * 100).toFixed(0)}% · ${b.charging ? 'charging' : 'on battery'}`;
+    }).catch(() => { $('cap-bat').textContent = 'available but query failed'; });
+  } else {
+    $('cap-bat').textContent = 'unavailable';
+  }
+  $('cap-wl').innerHTML = ('wakeLock' in navigator)
+    ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+  $('cap-fs').innerHTML = (document.fullscreenEnabled || document.webkitFullscreenEnabled)
+    ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>';
+
+  // ---------- frame rate ----------
+  let frames = 0;
+  let lastFpsT = performance.now();
+  const fpsLoop = (t) => {
+    frames++;
+    if (t - lastFpsT >= 500) {
+      const fps = (frames * 1000) / (t - lastFpsT);
+      const klass = fps > 50 ? 'ok' : fps > 30 ? 'warn' : 'bad';
+      setBadge($('badge-fps'), klass, `${fps.toFixed(0)} fps`);
+      frames = 0; lastFpsT = t;
+    }
+    requestAnimationFrame(fpsLoop);
+  };
+  requestAnimationFrame(fpsLoop);
+
+  // ---------- buttons ----------
+  $('btn-orient').addEventListener('click', startOrient);
+  $('btn-motion').addEventListener('click', startMotion);
+  $('btn-mic').addEventListener('click', startMic);
+  $('btn-vib').addEventListener('click', () => {
+    if (navigator.vibrate) {
+      const ok = navigator.vibrate([60, 40, 60, 40, 120]);
+      log(`vibrate() returned ${ok}`);
+    } else {
+      log('vibrate API absent');
+    }
+  });
+
+  // ---------- copy diagnostics ----------
+  $('btn-copy').addEventListener('click', () => {
+    const dump = {
+      collectedAt: new Date().toISOString(),
+      ua: navigator.userAgent,
+      platform: navigator.platform,
+      vendor: navigator.vendor,
+      origin: location.origin,
+      referrer: document.referrer,
+      topLevel: isTop,
+      viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio },
+      screen: { w: screen.width, h: screen.height },
+      hardware: { cores: navigator.hardwareConcurrency, memGB: navigator.deviceMemory },
+      mraid: window.mraid ? {
+        version: window.mraid.getVersion?.(),
+        state: window.mraid.getState?.(),
+        viewable: window.mraid.isViewable?.(),
+        placement: window.mraid.getPlacementType?.()
+      } : null,
+      permissionsPolicy: ppFeatures.reduce((acc, f) => {
+        try {
+          const fp = document.featurePolicy || document.permissionsPolicy;
+          acc[f] = fp?.allowsFeature ? fp.allowsFeature(f) : null;
+        } catch { acc[f] = null; }
+        return acc;
+      }, {}),
+      orientation: { api: orientApi, requestPermission: orientReq, eventsReceived: orientCount },
+      motion: { api: motionApi, requestPermission: motionReq, eventsReceived: motionCount, peakAccel: motionPeak },
+      mic: { gum: hasGUM, peakRms: micPeak },
+      log: $('event-log').textContent
+    };
+    const json = JSON.stringify(dump, null, 2);
+    const done = (label) => {
+      const b = $('btn-copy');
+      const old = b.textContent;
+      b.textContent = label;
+      setTimeout(() => { b.textContent = old; }, 1200);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(json).then(() => done('copied')).catch(() => {
+        $('event-log').textContent = json;
+        done('shown');
+      });
+    } else {
+      $('event-log').textContent = json;
+      done('shown');
+    }
+  });
+
+  log('probe initialized');
+})();
+</script>
+</body>
+</html>
