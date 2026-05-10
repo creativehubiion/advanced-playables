@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="ad.size" content="width=320,height=480">
+<title>iion sensor probe</title>
+<script src="mraid.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b0d10;color:#e6edf3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .brand{display:flex;align-items:center;gap:8px;margin-bottom:32px}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#5dd9ff,#a47bff);animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.4);opacity:1}}
+  .brand .name{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#9aa6c2;font-weight:600}
+  h1{font-size:24px;font-weight:800;letter-spacing:.02em;margin-bottom:12px;background:linear-gradient(90deg,#5dd9ff,#a47bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  p{font-size:13px;color:#7d8aa8;line-height:1.5;max-width:300px;margin-bottom:24px}
+  .cta{background:linear-gradient(90deg,#5dd9ff,#a47bff);color:#0b0d10;border:none;padding:13px 32px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;box-shadow:0 6px 20px rgba(93,217,255,.3);min-width:180px;display:none}
+  .cta.show{display:inline-block;animation:fade .4s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .cta:active{transform:scale(.97)}
+  .arrows{font-size:34px;letter-spacing:18px;color:#5dd9ff;margin-bottom:12px;text-shadow:0 0 12px rgba(93,217,255,.5);min-height:42px}
+  .arrows.tilt{animation:wobble 1.4s ease-in-out infinite}
+  @keyframes wobble{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+  .stat{position:fixed;bottom:8px;left:8px;right:8px;font-size:9px;color:#3d4658;text-align:left;letter-spacing:.04em;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.4;pointer-events:none}
+  .stat span{display:inline-block;margin-right:8px}
+</style>
+</head>
+<body>
+
+<div class="brand"><span class="dot"></span><span class="name">iion · advanced playable</span></div>
+<div class="arrows tilt" id="arrows">↶ ↷</div>
+<h1>Tilt to play</h1>
+<p>Move your phone to interact with the next iion playable. Tap below to learn more.</p>
+<button class="cta" id="cta">Learn more</button>
+
+<div class="stat" id="stat">Initializing…</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- bootstrap ----------
+  const STAT = document.getElementById('stat');
+  const CTA  = document.getElementById('cta');
+  const startedAt = performance.now();
+  let probeClosed = false;
+
+  // ---------- DMP tracking ----------
+  // window.trackingType is set in the trailing script block at end of body.
+  // It ends with `event_name=` so we just append the event name to fire.
+  const fired = new Set();
+  function track(name, oneShot = true) {
+    if (!name) return;
+    if (oneShot) {
+      if (fired.has(name)) return;
+      fired.add(name);
+    }
+    const url = (window.trackingType || '') + name;
+    try {
+      // GET request, fire-and-forget. Use Image() as a fallback safeguard
+      // in case fetch is throttled / blocked / CSP-restricted in some SDKs.
+      if (typeof fetch === 'function' && window.trackingType) {
+        fetch(url, { method: 'GET', mode: 'no-cors', keepalive: true }).catch(() => {
+          new Image().src = url;
+        });
+      } else if (window.trackingType) {
+        new Image().src = url;
+      }
+    } catch (e) {
+      try { new Image().src = url; } catch {}
+    }
+    // Visible diagnostic line (does not affect telemetry)
+    if (STAT) {
+      const dt = ((performance.now() - startedAt) / 1000).toFixed(1);
+      STAT.textContent = `[${dt}s] ${Array.from(fired).slice(-3).join(' · ')}`;
+    }
+  }
+
+  // ---------- environment + iframe context ----------
+  let isTop = false;
+  try { isTop = (window === window.top); } catch { isTop = false; }
+  track('SensorProbeLoaded');
+  track(isTop ? 'SensorProbeTopLevel' : 'SensorProbeIframed');
+
+  // ---------- Permissions Policy snapshot ----------
+  const ppFeatures = ['gyroscope','accelerometer','magnetometer','microphone','camera','geolocation','autoplay','fullscreen'];
+  ppFeatures.forEach((f) => {
+    let v = null;
+    try {
+      const fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && typeof fp.allowsFeature === 'function') v = fp.allowsFeature(f);
+    } catch {}
+    if (v === true)       track(`SensorPolicy_${f}_allowed`);
+    else if (v === false) track(`SensorPolicy_${f}_blocked`);
+    else                  track(`SensorPolicy_${f}_unknown`);
+  });
+
+  // ---------- MRAID ----------
+  if (window.mraid) {
+    track('SensorMraidPresent');
+    try {
+      const v = window.mraid.getVersion?.();
+      if (v) track('SensorMraidVersion_' + String(v).replace(/\W+/g, ''));
+    } catch {}
+  } else {
+    track('SensorMraidAbsent');
+  }
+
+  // ---------- DeviceOrientation ----------
+  const orientApi = typeof DeviceOrientationEvent !== 'undefined';
+  const orientGesture = orientApi && typeof DeviceOrientationEvent.requestPermission === 'function';
+  track(orientApi ? 'SensorOrientApiPresent' : 'SensorOrientApiAbsent');
+  if (orientApi) track(orientGesture ? 'SensorOrientGestureRequired' : 'SensorOrientAutoBind');
+
+  let orientCount = 0;
+  let orientFirstT = null;
+  function onOrient(e) {
+    orientCount++;
+    if (orientFirstT === null) {
+      orientFirstT = performance.now();
+      const dt = orientFirstT - startedAt;
+      const bucket = dt < 100 ? 'lt100ms' : dt < 500 ? '100to500ms' : dt < 2000 ? '500to2000ms' : 'gt2000ms';
+      track('SensorOrientFirstEvent_' + bucket);
+    }
+    if (orientCount === 10) track('SensorOrientConfirmed10');
+    if (orientCount === 50) track('SensorOrientConfirmed50');
+  }
+
+  function bindOrient() {
+    addEventListener('deviceorientation', onOrient, true);
+    setTimeout(() => {
+      if (orientCount === 0 && !probeClosed) track('SensorOrientSilentBlock');
+    }, 2000);
+  }
+
+  // ---------- DeviceMotion ----------
+  const motionApi = typeof DeviceMotionEvent !== 'undefined';
+  const motionGesture = motionApi && typeof DeviceMotionEvent.requestPermission === 'function';
+  track(motionApi ? 'SensorMotionApiPresent' : 'SensorMotionApiAbsent');
+  if (motionApi) track(motionGesture ? 'SensorMotionGestureRequired' : 'SensorMotionAutoBind');
+
+  let motionCount = 0;
+  let motionFirstT = null;
+  let userTilted = false;
+  function onMotion(e) {
+    motionCount++;
+    if (motionFirstT === null) {
+      motionFirstT = performance.now();
+      const dt = motionFirstT - startedAt;
+      const bucket = dt < 100 ? 'lt100ms' : dt < 500 ? '100to500ms' : dt < 2000 ? '500to2000ms' : 'gt2000ms';
+      track('SensorMotionFirstEvent_' + bucket);
+    }
+    if (motionCount === 10) track('SensorMotionConfirmed10');
+    if (motionCount === 50) track('SensorMotionConfirmed50');
+    // Detect real user motion (vs phone-on-table noise)
+    if (!userTilted && e.acceleration) {
+      const m = Math.hypot(e.acceleration.x || 0, e.acceleration.y || 0, e.acceleration.z || 0);
+      if (m > 1.5) { userTilted = true; track('SensorUserTilted'); }
+    }
+  }
+
+  function bindMotion() {
+    addEventListener('devicemotion', onMotion, true);
+    setTimeout(() => {
+      if (motionCount === 0 && !probeClosed) track('SensorMotionSilentBlock');
+    }, 2000);
+  }
+
+  // ---------- iOS gesture flow OR auto-bind ----------
+  async function startSensors(viaGesture) {
+    if (orientApi && orientGesture) {
+      try {
+        track('SensorOrientIOSPrompted');
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r === 'granted') { track('SensorOrientIOSGranted'); bindOrient(); }
+        else                  track('SensorOrientIOSDenied');
+      } catch (e) { track('SensorOrientIOSError'); }
+    } else if (orientApi) {
+      bindOrient();
+    }
+    if (motionApi && motionGesture) {
+      try {
+        const r = await DeviceMotionEvent.requestPermission();
+        if (r === 'granted') bindMotion();
+      } catch {}
+    } else if (motionApi) {
+      bindMotion();
+    }
+  }
+
+  // On Android (no gesture), bind immediately.
+  if (orientApi && !orientGesture) startSensors(false);
+
+  // ---------- user interaction ----------
+  let userTapped = false;
+  function onTap(e) {
+    if (!userTapped) {
+      userTapped = true;
+      track('SensorUserTapped');
+      // If iOS gesture is required, this is our one chance — start sensors now.
+      if (orientGesture || motionGesture) startSensors(true);
+    }
+  }
+  document.addEventListener('click', onTap, { once: false });
+  document.addEventListener('touchend', onTap, { once: false });
+
+  // Show CTA after 4s so the user has something to tap (gives iOS gesture opportunity
+  // even on a passive impression).
+  setTimeout(() => {
+    if (!probeClosed) CTA.classList.add('show');
+  }, 4000);
+
+  CTA.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onTap(e);
+    track('SensorCtaClicked');
+    const url = window.landingPageUrl || '';
+    if (!url) return;
+    try {
+      if (window.mraid && typeof window.mraid.open === 'function') { window.mraid.open(url); return; }
+    } catch {}
+    try { window.open(url, '_blank'); } catch {}
+  });
+
+  // ---------- close lifecycle ----------
+  function onClose() {
+    if (probeClosed) return;
+    probeClosed = true;
+    const dur = performance.now() - startedAt;
+    let bucket;
+    if (dur < 2000)        bucket = 'lt2s';
+    else if (dur < 5000)   bucket = '2to5s';
+    else if (dur < 10000)  bucket = '5to10s';
+    else                   bucket = 'gt10s';
+    track('SensorProbeClosed_' + bucket);
+    // Final summary events that aggregate per impression
+    if (orientCount === 0 && orientApi) track('SensorOrientNoEventsAtClose');
+    if (motionCount === 0 && motionApi) track('SensorMotionNoEventsAtClose');
+    if (!userTapped) track('SensorNoUserTapAtClose');
+  }
+  // Multiple close hooks for robustness across SDK lifecycle quirks
+  addEventListener('pagehide', onClose);
+  addEventListener('beforeunload', onClose);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') onClose();
+  });
+  // MRAID stateChange to 'hidden' is another close signal
+  try {
+    window.mraid?.addEventListener?.('stateChange', (s) => {
+      if (s === 'hidden' || s === 'expanded') {} else if (s) onClose();
+    });
+    window.mraid?.addEventListener?.('viewableChange', (v) => {
+      if (v === false) onClose();
+    });
+  } catch {}
+
+})();
+</script>
+
+<!-- =========================================================
+     iion PLL / RTB tracking macro block
+     - DMP base: staging-dmp-producer.iion.io (same endpoint as GAM)
+     - PLL/RTB macros (%%campaignId%%, %%clickUrl%%, %%bundle%%,
+       %%os%%, %%ifa%%, %%lat%%, %%lon%%, etc.) are substituted by
+       the SSP/exchange at bid time. Includes richer context than
+       GAM (app bundle, OS, IP, geo, device make, content category).
+     - event_name= MUST stay last; the probe appends event names.
+     ========================================================= -->
+<script>
+  window.trackingPath  = "https://creativehubiion.github.io/advanced-playables/sensor-probe-telemetry/";
+  window.trackingType  = "https://staging-dmp-producer.iion.io/tracker/impressions?platform=RTB&campaign_id=%%campaignId%%&publisher_id=%%pubId%%&creative_id=%%creativeId%%&request_id=%%requestId%%&user_id=%%userId%%&ip_address=%%ip%%&app_id_bundle_id=%%bundle%%&maid=%%ifa%%&app_name=%%appName%%&os=%%os%%&user_agent=%%userAgentEnc%%&latitude=%%lat%%&longitude=%%lon%%&page_url=%%pageUrl%%&country=%%country%%&device_make=%%deviceMake%%&domain=%%domain%%&height=%%height%%&width=%%width%%&video_min_duration=%%videoMinDuration%%&video_max_duration=%%videoMaxDuration%%&content_genre=%%contgenre%%&content_cat=%%contcat%%&gdpr=%%gdpr%%&gdpr_consent=%%gdprConsent%%&demand_id=%%demandId%%&line_item=%%adgroupId%%&event_name=";
+  window.setTracker    = "%%clickUrl%%";
+  window.landingPageUrl = window.setTracker + "https://www.iion.io/";
+</script>
+</body>
+</html>
